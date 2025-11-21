@@ -34,12 +34,21 @@ Belirtilen gruba dahil olan kullanıcıları listeler.
 `GET /grups/{firmaid}`
 Belirtilen firmaya ait alt kullanıcı gruplarını listeler.
 
-## Kurulum
+## Deployment (CapRover)
 
-Docker ile ayağa kaldırmak için:
+Bu uygulama CapRover veya herhangi bir Docker ortamında çalıştırılmak üzere tasarlanmıştır. Veritabanı bağlantısı için aşağıdaki ortam değişkenlerinin (Environment Variables) tanımlanması gerekmektedir:
+
+| Değişken | Açıklama | Örnek |
+|---|---|---|
+| `DB_HOST` | Veritabanı sunucu adresi | `mysql-srv` |
+| `DB_NAME` | Veritabanı adı | `user_auth_db` |
+| `DB_USER` | Veritabanı kullanıcısı | `app_user` |
+| `DB_PASS` | Veritabanı şifresi | `secret_password` |
+
+### Docker Compose ile Çalıştırma
+
+`docker-compose.yml` dosyası sadece uygulama servisini içerir. Harici bir MySQL sunucusuna bağlanmak için `environment` bölümünü düzenleyebilir veya `.env` dosyası kullanabilirsiniz.
 
 ```bash
 docker-compose up -d --build
 ```
-
-Servis `8000` portunda çalışacaktır.

@@ -1,39 +1,18 @@
 version: '3.8'
 
 services:
-  db:
-    image: mysql:8.0
-    container_name: user_auth_db
-    restart: always
-    environment:
-      MYSQL_ROOT_PASSWORD: root
-      MYSQL_DATABASE: user_auth_db
-      MYSQL_USER: app_user
-      MYSQL_PASSWORD: app_password
-    ports:
-      - "3309:3306"
-    volumes:
-      - db_data:/var/lib/mysql
-
-  adminer:
-    image: adminer
-    container_name: user_auth_adminer
-    restart: always
-    ports:
-      - "8088:8080"
-    environment:
-      ADMINER_DEFAULT_SERVER: db
-
   app:
-    build: .
     container_name: user_auth_app
+    build:
+      context: .
+      dockerfile: Dockerfile
     restart: always
     ports:
       - "8000:80"
     volumes:
       - ./src:/var/www/html
-    depends_on:
-      - db
-
-volumes:
-  db_data:
+    environment:
+      - DB_HOST=db_host_placeholder
+      - DB_NAME=user_auth_db
+      - DB_USER=db_user_placeholder
+      - DB_PASS=db_pass_placeholder

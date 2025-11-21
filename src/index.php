@@ -3,10 +3,10 @@
 header('Content-Type: application/json');
 
 // Database connection parameters
-$host = 'db';
-$db = 'user_auth_db';
-$user = 'root';
-$pass = 'root';
+$host = getenv('DB_HOST') ?: 'db';
+$db = getenv('DB_NAME') ?: 'user_auth_db';
+$user = getenv('DB_USER') ?: 'root';
+$pass = getenv('DB_PASS') ?: 'root';
 $charset = 'utf8mb4';
 
 $dsn = "mysql:host=$host;dbname=$db;charset=$charset";
