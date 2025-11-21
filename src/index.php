@@ -35,7 +35,16 @@ if ($pathParts[0] === 'user' && isset($pathParts[1]) && is_numeric($pathParts[1]
     if ($_SERVER['REQUEST_METHOD'] === 'GET') {
         getUserDetails($pdo, $userId);
     } else {
-        http_response_code(405); // Method Not Allowed
+        http_response_code(405);
+        echo json_encode(['error' => 'Method not allowed. This is a read-only application.']);
+    }
+} elseif ($pathParts[0] === 'firma' && isset($pathParts[1]) && is_numeric($pathParts[1])) {
+    $userId = (int) $pathParts[1];
+
+    if ($_SERVER['REQUEST_METHOD'] === 'GET') {
+        getFirmaDetails($pdo, $userId);
+    } else {
+        http_response_code(405);
         echo json_encode(['error' => 'Method not allowed. This is a read-only application.']);
     }
 } else {
@@ -46,15 +55,77 @@ if ($pathParts[0] === 'user' && isset($pathParts[1]) && is_numeric($pathParts[1]
 function getUserDetails($pdo, $userId)
 {
     try {
+        $userData = fetchUserData($pdo, $userId);
+
+        if ($userData) {
+            echo json_encode($userData);
+        } else {
+            http_response_code(404);
+            echo json_encode(['error' => 'User not found']);
+        }
+    } catch (\PDOException $e) {
+        http_response_code(500);
+        echo json_encode(['error' => 'Query failed: ' . $e->getMessage()]);
+    }
+}
+
+function getFirmaDetails($pdo, $userId)
+{
+    try {
+        $mainUser = fetchUserData($pdo, $userId);
+
+        if (!$mainUser) {
+            http_response_code(404);
+            echo json_encode(['error' => 'User not found']);
+            return;
+        }
+
+        $username = $mainUser['username'];
+
+        // Fetch all users with the same username (Organization ID)
+        // Excluding the main user itself from the list? The requirement says "other users", 
+        // but usually a list includes everyone or excludes the caller. 
+        // "aynı username'deki diğer kullanıcıları da dönecek" implies "others".
+        // Let's include all for completeness or strictly others? 
+        // "bu organizasyona bağlı tüm userları getirmeli" -> "all users".
+        // I will include ALL users with that username, including the main user in the list, 
+        // or just put them in 'organization_users'.
+        // Let's follow the plan: main_user + organization_users list.
+
+        $stmt = $pdo->prepare("SELECT id FROM main_users WHERE username = ?");
+        $stmt->execute([$username]);
+        $relatedUserIds = $stmt->fetchAll(PDO::FETCH_COLUMN);
+
+        $organizationUsers = [];
+        foreach ($relatedUserIds as $relatedId) {
+            // Optimization: fetchUserData might be heavy if called in loop. 
+            // But for now it ensures consistency.
+            if ($relatedId != $userId) {
+                $organizationUsers[] = fetchUserData($pdo, $relatedId);
+            }
+        }
+
+        echo json_encode([
+            'main_user' => $mainUser,
+            'organization_users' => $organizationUsers
+        ]);
+
+    } catch (\PDOException $e) {
+        http_response_code(500);
+        echo json_encode(['error' => 'Query failed: ' . $e->getMessage()]);
+    }
+}
+
+function fetchUserData($pdo, $userId)
+{
+    try {
         // Fetch Main User Info
         $stmt = $pdo->prepare("SELECT * FROM main_users WHERE id = ?");
         $stmt->execute([$userId]);
         $user = $stmt->fetch();
 
         if (!$user) {
-            http_response_code(404);
-            echo json_encode(['error' => 'User not found']);
-            return;
+            return null;
         }
 
         // Fetch User Meta
@@ -100,10 +171,11 @@ function getUserDetails($pdo, $userId)
             $user['group_info'] = $group;
         }
 
-        echo json_encode($user);
+        return $user;
 
     } catch (\PDOException $e) {
-        http_response_code(500);
-        echo json_encode(['error' => 'Query failed: ' . $e->getMessage()]);
+        // Log error or handle it? For now return null or throw
+        // To keep simple, we might return null or let exception bubble up if we want 500
+        throw $e;
     }
 }
