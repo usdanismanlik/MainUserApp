@@ -1,0 +1,103 @@
+<?php
+
+header('Content-Type: application/json');
+
+// Database connection parameters
+$host = 'db';
+$db = 'user_auth_db';
+$user = 'root';
+$pass = 'root';
+$charset = 'utf8mb4';
+
+$dsn = "mysql:host=$host;dbname=$db;charset=$charset";
+$options = [
+    PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
+    PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
+    PDO::ATTR_EMULATE_PREPARES => false,
+];
+
+try {
+    $pdo = new PDO($dsn, $user, $pass, $options);
+} catch (\PDOException $e) {
+    http_response_code(500);
+    echo json_encode(['error' => 'Database connection failed: ' . $e->getMessage()]);
+    exit;
+}
+
+// Simple Router
+$requestUri = $_SERVER['REQUEST_URI'];
+$path = parse_url($requestUri, PHP_URL_PATH);
+$pathParts = explode('/', trim($path, '/'));
+
+if ($pathParts[0] === 'user' && isset($pathParts[1]) && is_numeric($pathParts[1])) {
+    $userId = (int) $pathParts[1];
+    getUserDetails($pdo, $userId);
+} else {
+    http_response_code(404);
+    echo json_encode(['error' => 'Endpoint not found']);
+}
+
+function getUserDetails($pdo, $userId)
+{
+    try {
+        // Fetch Main User Info
+        $stmt = $pdo->prepare("SELECT * FROM main_users WHERE id = ?");
+        $stmt->execute([$userId]);
+        $user = $stmt->fetch();
+
+        if (!$user) {
+            http_response_code(404);
+            echo json_encode(['error' => 'User not found']);
+            return;
+        }
+
+        // Fetch User Meta
+        $stmtMeta = $pdo->prepare("SELECT meta, value FROM main_userMeta WHERE user = ?");
+        $stmtMeta->execute([$userId]);
+        $metaRaw = $stmtMeta->fetchAll();
+
+        $meta = [];
+        foreach ($metaRaw as $m) {
+            $val = $m['value'];
+            $lowerVal = strtolower($val);
+            if (in_array($lowerVal, ['yes', 'evet', '1'])) {
+                $val = true;
+            } elseif (in_array($lowerVal, ['no', 'hayir', '0'])) {
+                $val = false;
+            }
+            $meta[$m['meta']] = $val;
+        }
+
+        // Merge meta into user
+        $user = array_merge($user, $meta);
+
+        // Fetch Subuser Group Info
+        // Logic: Check if 'grup' column in main_users is set, or check main_subuser_grups by user id
+        // Based on table inspection: main_subuser_grups has a 'user' column.
+        $group = null;
+
+        // Try fetching by user id in subuser_grups
+        $stmtGroup = $pdo->prepare("SELECT * FROM main_subuser_grups WHERE user = ?");
+        $stmtGroup->execute([$userId]);
+        $groupData = $stmtGroup->fetch();
+
+        if ($groupData) {
+            $group = $groupData;
+        } elseif (!empty($user['grup'])) {
+            // Fallback: if main_users.grup is set, maybe it links to main_subuser_grups.id
+            $stmtGroupById = $pdo->prepare("SELECT * FROM main_subuser_grups WHERE id = ?");
+            $stmtGroupById->execute([$user['grup']]);
+            $group = $stmtGroupById->fetch();
+        }
+
+        if ($group) {
+            $user['group_info'] = $group;
+        }
+
+        echo json_encode($user);
+
+    } catch (\PDOException $e) {
+        http_response_code(500);
+        echo json_encode(['error' => 'Query failed: ' . $e->getMessage()]);
+    }
+}
