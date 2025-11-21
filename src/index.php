@@ -47,6 +47,15 @@ if ($pathParts[0] === 'user' && isset($pathParts[1]) && is_numeric($pathParts[1]
         http_response_code(405);
         echo json_encode(['error' => 'Method not allowed. This is a read-only application.']);
     }
+} elseif ($pathParts[0] === 'personel' && isset($pathParts[1]) && is_numeric($pathParts[1])) {
+    $firmaId = (int) $pathParts[1];
+
+    if ($_SERVER['REQUEST_METHOD'] === 'GET') {
+        getPersonelByFirma($pdo, $firmaId);
+    } else {
+        http_response_code(405);
+        echo json_encode(['error' => 'Method not allowed. This is a read-only application.']);
+    }
 } else {
     http_response_code(404);
     echo json_encode(['error' => 'Endpoint not found']);
@@ -109,6 +118,30 @@ function getFirmaDetails($pdo, $userId)
             'main_user' => $mainUser,
             'organization_users' => $organizationUsers
         ]);
+
+    } catch (\PDOException $e) {
+        http_response_code(500);
+        echo json_encode(['error' => 'Query failed: ' . $e->getMessage()]);
+    }
+}
+
+function getPersonelByFirma($pdo, $firmaId)
+{
+    try {
+        // Find users who have meta 'personelFirma' equal to $firmaId
+        $stmt = $pdo->prepare("SELECT user FROM main_userMeta WHERE meta = 'personelFirma' AND value = ?");
+        $stmt->execute([$firmaId]);
+        $userIds = $stmt->fetchAll(PDO::FETCH_COLUMN);
+
+        $personelList = [];
+        foreach ($userIds as $uid) {
+            $userData = fetchUserData($pdo, $uid);
+            if ($userData) {
+                $personelList[] = $userData;
+            }
+        }
+
+        echo json_encode($personelList);
 
     } catch (\PDOException $e) {
         http_response_code(500);
