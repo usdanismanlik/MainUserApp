@@ -85,7 +85,7 @@ function getUserDetails($pdo, $userId)
         $userData = fetchUserData($pdo, $userId);
 
         if ($userData) {
-            echo json_encode(recursiveJsonDecode($userData));
+            sendResponse($userData);
         } else {
             http_response_code(404);
             echo json_encode(['error' => 'User not found']);
@@ -132,10 +132,10 @@ function getFirmaDetails($pdo, $userId)
             }
         }
 
-        echo json_encode(recursiveJsonDecode([
+        sendResponse([
             'main_user' => $mainUser,
             'organization_users' => $organizationUsers
-        ]));
+        ]);
 
     } catch (\PDOException $e) {
         http_response_code(500);
@@ -159,7 +159,7 @@ function getPersonelByFirma($pdo, $firmaId)
             }
         }
 
-        echo json_encode(recursiveJsonDecode($personelList));
+        sendResponse($personelList);
 
     } catch (\PDOException $e) {
         http_response_code(500);
@@ -182,7 +182,7 @@ function getUsersByGroup($pdo, $groupId)
             }
         }
 
-        echo json_encode(recursiveJsonDecode($userList));
+        sendResponse($userList);
 
     } catch (\PDOException $e) {
         http_response_code(500);
@@ -197,7 +197,7 @@ function getGroupsByFirma($pdo, $firmaId)
         $stmt->execute([$firmaId]);
         $groups = $stmt->fetchAll();
 
-        echo json_encode(recursiveJsonDecode($groups));
+        sendResponse($groups);
 
     } catch (\PDOException $e) {
         http_response_code(500);
@@ -267,6 +267,28 @@ function fetchUserData($pdo, $userId)
         // To keep simple, we might return null or let exception bubble up if we want 500
         throw $e;
     }
+}
+
+function sendResponse($data)
+{
+    $excludedFields = ['password', 'passbase64', 'auth_key', 'token', 'secret'];
+    $decoded = recursiveJsonDecode($data);
+    $filtered = filterSensitiveData($decoded, $excludedFields);
+    echo json_encode($filtered);
+}
+
+function filterSensitiveData($data, $excludedFields)
+{
+    if (is_array($data)) {
+        foreach ($data as $key => $value) {
+            if (in_array($key, $excludedFields, true)) {
+                unset($data[$key]);
+            } else {
+                $data[$key] = filterSensitiveData($value, $excludedFields);
+            }
+        }
+    }
+    return $data;
 }
 
 function recursiveJsonDecode($data)
