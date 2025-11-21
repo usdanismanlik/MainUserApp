@@ -31,7 +31,13 @@ $pathParts = explode('/', trim($path, '/'));
 
 if ($pathParts[0] === 'user' && isset($pathParts[1]) && is_numeric($pathParts[1])) {
     $userId = (int) $pathParts[1];
-    getUserDetails($pdo, $userId);
+
+    if ($_SERVER['REQUEST_METHOD'] === 'GET') {
+        getUserDetails($pdo, $userId);
+    } else {
+        http_response_code(405); // Method Not Allowed
+        echo json_encode(['error' => 'Method not allowed. This is a read-only application.']);
+    }
 } else {
     http_response_code(404);
     echo json_encode(['error' => 'Endpoint not found']);
