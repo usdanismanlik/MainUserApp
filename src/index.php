@@ -56,6 +56,24 @@ if ($pathParts[0] === 'user' && isset($pathParts[1]) && is_numeric($pathParts[1]
         http_response_code(405);
         echo json_encode(['error' => 'Method not allowed. This is a read-only application.']);
     }
+} elseif ($pathParts[0] === 'grup' && isset($pathParts[1]) && is_numeric($pathParts[1])) {
+    $groupId = (int) $pathParts[1];
+
+    if ($_SERVER['REQUEST_METHOD'] === 'GET') {
+        getUsersByGroup($pdo, $groupId);
+    } else {
+        http_response_code(405);
+        echo json_encode(['error' => 'Method not allowed. This is a read-only application.']);
+    }
+} elseif ($pathParts[0] === 'grups' && isset($pathParts[1]) && is_numeric($pathParts[1])) {
+    $firmaId = (int) $pathParts[1];
+
+    if ($_SERVER['REQUEST_METHOD'] === 'GET') {
+        getGroupsByFirma($pdo, $firmaId);
+    } else {
+        http_response_code(405);
+        echo json_encode(['error' => 'Method not allowed. This is a read-only application.']);
+    }
 } else {
     http_response_code(404);
     echo json_encode(['error' => 'Endpoint not found']);
@@ -67,7 +85,7 @@ function getUserDetails($pdo, $userId)
         $userData = fetchUserData($pdo, $userId);
 
         if ($userData) {
-            echo json_encode($userData);
+            echo json_encode(recursiveJsonDecode($userData));
         } else {
             http_response_code(404);
             echo json_encode(['error' => 'User not found']);
@@ -114,10 +132,10 @@ function getFirmaDetails($pdo, $userId)
             }
         }
 
-        echo json_encode([
+        echo json_encode(recursiveJsonDecode([
             'main_user' => $mainUser,
             'organization_users' => $organizationUsers
-        ]);
+        ]));
 
     } catch (\PDOException $e) {
         http_response_code(500);
@@ -141,7 +159,45 @@ function getPersonelByFirma($pdo, $firmaId)
             }
         }
 
-        echo json_encode($personelList);
+        echo json_encode(recursiveJsonDecode($personelList));
+
+    } catch (\PDOException $e) {
+        http_response_code(500);
+        echo json_encode(['error' => 'Query failed: ' . $e->getMessage()]);
+    }
+}
+
+function getUsersByGroup($pdo, $groupId)
+{
+    try {
+        $stmt = $pdo->prepare("SELECT id FROM main_users WHERE grup = ?");
+        $stmt->execute([$groupId]);
+        $userIds = $stmt->fetchAll(PDO::FETCH_COLUMN);
+
+        $userList = [];
+        foreach ($userIds as $uid) {
+            $userData = fetchUserData($pdo, $uid);
+            if ($userData) {
+                $userList[] = $userData;
+            }
+        }
+
+        echo json_encode(recursiveJsonDecode($userList));
+
+    } catch (\PDOException $e) {
+        http_response_code(500);
+        echo json_encode(['error' => 'Query failed: ' . $e->getMessage()]);
+    }
+}
+
+function getGroupsByFirma($pdo, $firmaId)
+{
+    try {
+        $stmt = $pdo->prepare("SELECT * FROM main_subuser_grups WHERE user = ?");
+        $stmt->execute([$firmaId]);
+        $groups = $stmt->fetchAll();
+
+        echo json_encode(recursiveJsonDecode($groups));
 
     } catch (\PDOException $e) {
         http_response_code(500);
@@ -211,4 +267,20 @@ function fetchUserData($pdo, $userId)
         // To keep simple, we might return null or let exception bubble up if we want 500
         throw $e;
     }
+}
+
+function recursiveJsonDecode($data)
+{
+    if (is_array($data)) {
+        foreach ($data as $key => $value) {
+            $data[$key] = recursiveJsonDecode($value);
+        }
+        return $data;
+    } elseif (is_string($data)) {
+        $decoded = json_decode($data, true);
+        if (json_last_error() === JSON_ERROR_NONE && (is_array($decoded) || is_object($decoded))) {
+            return recursiveJsonDecode($decoded); // Recurse in case the decoded JSON contains more JSON strings
+        }
+    }
+    return $data;
 }
