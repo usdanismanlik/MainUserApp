@@ -271,7 +271,7 @@ function fetchUserData($pdo, $userId)
 
 function sendResponse($data)
 {
-    $excludedFields = ['password', 'passbase64', 'auth_key', 'token', 'secret'];
+    $excludedFields = ['password', 'passbase64', 'auth_key', 'token', 'secret', 'ldap_url', 'ldap_base_dn', 'ldap_bind_dn', 'ldap_bind_password'];
     $decoded = recursiveJsonDecode($data);
     $filtered = filterSensitiveData($decoded, $excludedFields);
     echo json_encode($filtered);
